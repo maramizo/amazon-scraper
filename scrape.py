@@ -73,6 +73,8 @@ def get_all_products(url: str) -> Products:
             product_info = get_product_info(product_url)
             products.append(product_info)
         next_page and next_page.click()
+        if not next_page:
+            break
     driver.close()
     return products
 
