@@ -4,6 +4,7 @@ from selenium import webdriver
 import pandas as pd
 import chromedriver_binary  # noqa
 from urllib.parse import urlsplit
+import re
 
 
 driver = webdriver.Chrome()
@@ -26,10 +27,16 @@ def get_product_info(url: str) -> Product:
     driver.get(url)
     soup = BeautifulSoup(driver.page_source, "html.parser")
     name = soup.find("span", {"id": "productTitle"}).text.strip()
-    price = soup.find("span", {"class": "a-price-whole"}).text.strip()
+    price = soup.find("span", {"class": "a-price-whole"})
+    price = price.text.strip() if price else None
+    if not price:
+        price = soup.find("span", {"class": "a-price a-text-price a-size-medium apexPriceToPay"})
+        price = price.find("span", {"class": "a-offscreen"}).text.strip() if price else None
+        price = re.sub(r"[^\d.]", "", price)
     price = float(price[1:].replace(",", ""))
     images = [image["src"] for image in soup.find_all("img", {"class": "a-dynamic-image"})]
-    description = soup.find("div", {"id": "productDescription"}).find("p").text.strip()
+    description = soup.find("div", {"id": "productDescription"}).find("p")
+    description = description.text.strip() if description else ""
     asin = soup.find("input", {"id": "ASIN"})["value"]
     additional_info = []
     for info in soup.find_all("div", {"class": "a-section a-spacing-small a-spacing-top-small"}):
@@ -55,6 +62,7 @@ def get_all_products(url: str) -> Products:
     base_url = f"{scheme}://{netloc}"
     while True:
         soup = BeautifulSoup(driver.page_source, "html.parser")
+        next_page = driver.find_element("xpath", "//li[@class='a-last']/a")
         for product in soup.find_all("div", {"data-component-type": "s-search-result"}):
             if isinstance(product, dict):
                 continue
@@ -62,8 +70,7 @@ def get_all_products(url: str) -> Products:
             product_info = get_product_info(product_url)
             products.append(product_info)
         try:
-            next_page = driver.find_element("xpath", "//li[@class='a-last']/a")
-            next_page.click()
+            next_page and next_page.click()
         except:
             break
     driver.close()
