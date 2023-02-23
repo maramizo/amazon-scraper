@@ -15,6 +15,7 @@ class Product(TypedDict):
     asin: str
     name: str
     price: float
+    brand: str
     images: list[str]
     description: str
     additional_info: list[dict]
@@ -29,15 +30,16 @@ def get_product_info(url: str) -> Product:
     soup = BeautifulSoup(driver.page_source, "html.parser")
     name = soup.find("span", {"id": "productTitle"}).text.strip()
     price = soup.find("span", {"class": "a-price-whole"})
-    price = price.text.strip() if price else None
+    price = float(price.text.strip().replace(",", "")) if price else None
     if not price:
         price = soup.find("span", {"class": "a-price a-text-price a-size-medium apexPriceToPay"})
         price = price.find("span", {"class": "a-offscreen"}).text.strip() if price else None
         price = re.sub(r"[^\d.]", "", price)
-    price = float(price[1:].replace(",", ""))
     images = [image["src"] for image in soup.find_all("img", {"class": "a-dynamic-image"})]
     description = soup.find("div", {"id": "productDescription"}).find("p")
     description = description.text.strip() if description else ""
+    brand = soup.find("a", {"id": "bylineInfo"})
+    brand = brand.text.strip().replace("Brand: ", "") if brand else ""
     asin = soup.find("input", {"id": "ASIN"})["value"]
     additional_info = []
     for info in soup.find_all("div", {"class": "a-section a-spacing-small a-spacing-top-small"}):
@@ -48,6 +50,7 @@ def get_product_info(url: str) -> Product:
         "name": name,
         "asin": asin,
         "price": price,
+        "brand": brand,
         "images": images,
         "description": description,
         "additional_info": additional_info
@@ -61,7 +64,8 @@ def get_all_products(url: str) -> Products:
     current_url = driver.current_url
     scheme, netloc = urlsplit(current_url).scheme, urlsplit(current_url).netloc
     base_url = f"{scheme}://{netloc}"
-    while True:
+    next_page = True
+    while next_page:
         soup = BeautifulSoup(driver.page_source, "html.parser")
         next_page = None
         with contextlib.suppress(Exception):
@@ -73,8 +77,6 @@ def get_all_products(url: str) -> Products:
             product_info = get_product_info(product_url)
             products.append(product_info)
         next_page and next_page.click()
-        if not next_page:
-            break
     driver.close()
     return products
 
