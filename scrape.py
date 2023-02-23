@@ -1,3 +1,4 @@
+import contextlib
 from typing import TypedDict
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -62,17 +63,16 @@ def get_all_products(url: str) -> Products:
     base_url = f"{scheme}://{netloc}"
     while True:
         soup = BeautifulSoup(driver.page_source, "html.parser")
-        next_page = driver.find_element("xpath", "//li[@class='a-last']/a")
+        next_page = None
+        with contextlib.suppress(Exception):
+            next_page = driver.find_element("xpath", "//li[@class='a-last']/a")
         for product in soup.find_all("div", {"data-component-type": "s-search-result"}):
             if isinstance(product, dict):
                 continue
             product_url = base_url + product.find("span", {"data-component-type": "s-product-image"}).find("a")["href"]
             product_info = get_product_info(product_url)
             products.append(product_info)
-        try:
-            next_page and next_page.click()
-        except:
-            break
+        next_page and next_page.click()
     driver.close()
     return products
 
